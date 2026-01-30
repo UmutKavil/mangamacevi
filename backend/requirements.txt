@@ -1,0 +1,32 @@
+# FastAPI ve Web Server
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+aiofiles==23.2.1
+
+# Görüntü İşleme
+opencv-python==4.9.0.80
+opencv-contrib-python==4.9.0.80
+Pillow==10.2.0
+numpy==1.26.3
+
+# OCR
+easyocr==1.7.1
+torch==2.1.2
+torchvision==0.16.2
+
+# Çeviri
+deep-translator==1.11.4
+googletrans==4.0.0rc1
+
+# Inpainting (LaMa Model)
+# torch already included above
+simple-lama-inpainting==0.1.0
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# CORS
+fastapi-cors==0.0.6

@@ -39,10 +39,11 @@ export default function Home() {
 
     try {
       const response = await translateMangaPage(file);
+      // Immediately show result when backend responds
+      setIsProcessing(false);
       setResult(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bir hata oluştu');
-    } finally {
       setIsProcessing(false);
     }
   };

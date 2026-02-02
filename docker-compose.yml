@@ -17,7 +17,7 @@ services:
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - DEBUG=True
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://frontend:3000
       - OCR_GPU=False
     env_file:
       - ./backend/.env
@@ -45,6 +45,7 @@ services:
       - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - BACKEND_URL=http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped

@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { logger } from './logger';
 
-// Configure base URL for API
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use Next.js API routes as proxy to backend
+const API_BASE_URL = '/api';
+// Backend URL for static files
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -53,7 +55,7 @@ export async function translateMangaPage(
     try {
       logger.debug(`Translation attempt ${attempt + 1}/${retries + 1}`);
       
-      const response = await api.post<TranslationResponse>('/api/translate', formData, {
+      const response = await api.post<TranslationResponse>('/translate', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -140,7 +142,7 @@ export async function checkHealth(): Promise<boolean> {
  */
 export async function cleanupFiles(fileId: string): Promise<void> {
   try {
-    await api.delete(`/api/cleanup/${fileId}`);
+    await api.delete(`/cleanup/${fileId}`);
     logger.info('Cleanup completed', { fileId });
   } catch (error) {
     logger.error('Cleanup failed', error);
@@ -154,7 +156,7 @@ export function getImageUrl(relativeUrl: string): string {
   if (relativeUrl.startsWith('http')) {
     return relativeUrl;
   }
-  const fullUrl = `${API_BASE_URL}${relativeUrl}`;
+  const fullUrl = `${BACKEND_URL}${relativeUrl}`;
   logger.debug('Image URL', { relative: relativeUrl, full: fullUrl });
   return fullUrl;
 }

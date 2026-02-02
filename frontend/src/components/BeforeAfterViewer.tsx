@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TranslationResponse, getImageUrl } from '@/lib/api';
 import { FiRotateCw, FiDownload } from 'react-icons/fi';
 
@@ -12,28 +12,73 @@ interface BeforeAfterViewerProps {
 export default function BeforeAfterViewer({ result, onReset }: BeforeAfterViewerProps) {
   const [showBefore, setShowBefore] = useState(true);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [imageLoading, setImageLoading] = useState(true);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
 
   const originalUrl = getImageUrl(result.original_image_url);
   const translatedUrl = getImageUrl(result.translated_image_url);
 
-  const handleImageLoad = () => {
-    setImageLoading(false);
-    setImageError(null);
-  };
+  // Preload both images when component mounts
+  useEffect(() => {
+    let mounted = true;
+    const loadImages = async () => {
+      try {
+        const promises = [originalUrl, translatedUrl].map(url => {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(url);
+            img.onerror = () => reject(new Error(`Failed to load ${url}`));
+            img.src = url;
+          });
+        });
+        
+        await Promise.all(promises);
+        if (mounted) {
+          setImagesLoaded(true);
+          setImageError(null);
+        }
+      } catch (error) {
+        if (mounted) {
+          setImageError('Görsel yüklenemedi. Lütfen tekrar deneyin.');
+          setImagesLoaded(true);
+        }
+      }
+    };
+    
+    loadImages();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [originalUrl, translatedUrl]);
 
   const handleImageError = () => {
-    setImageLoading(false);
     setImageError('Görsel yüklenemedi. Lütfen tekrar deneyin.');
   };
 
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = translatedUrl;
-    link.download = 'mangama-translated.png';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    try {
+      // Fetch the image as blob to bypass CORS restrictions
+      const response = await fetch(translatedUrl);
+      const blob = await response.blob();
+      
+      // Create object URL from blob
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `mangama-translated-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback: open in new tab if download fails
+      window.open(translatedUrl, '_blank');
+    }
   };
 
   return (
@@ -101,9 +146,10 @@ export default function BeforeAfterViewer({ result, onReset }: BeforeAfterViewer
 
         <div className="p-6 bg-gray-50">
           <div className="relative mx-auto max-w-4xl">
-            {imageLoading && (
-              <div className="flex items-center justify-center py-20">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            {!imagesLoaded && !imageError && (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <p className="text-gray-600 text-sm">Görseller yükleniyor...</p>
               </div>
             )}
             {imageError && (
@@ -113,7 +159,7 @@ export default function BeforeAfterViewer({ result, onReset }: BeforeAfterViewer
                 <button
                   onClick={() => {
                     setImageError(null);
-                    setImageLoading(true);
+                    setImagesLoaded(false);
                   }}
                   className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
@@ -121,15 +167,14 @@ export default function BeforeAfterViewer({ result, onReset }: BeforeAfterViewer
                 </button>
               </div>
             )}
-            <img
-              src={showBefore ? originalUrl : translatedUrl}
-              alt={showBefore ? 'Original' : 'Translated'}
-              className={`w-full h-auto rounded-lg shadow-md ${
-                imageLoading || imageError ? 'hidden' : ''
-              }`}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-            />
+            {imagesLoaded && !imageError && (
+              <img
+                src={showBefore ? originalUrl : translatedUrl}
+                alt={showBefore ? 'Original' : 'Translated'}
+                className="w-full h-auto rounded-lg shadow-md"
+                onError={handleImageError}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -11,9 +11,21 @@ interface BeforeAfterViewerProps {
 
 export default function BeforeAfterViewer({ result, onReset }: BeforeAfterViewerProps) {
   const [showBefore, setShowBefore] = useState(true);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(true);
 
   const originalUrl = getImageUrl(result.original_image_url);
   const translatedUrl = getImageUrl(result.translated_image_url);
+
+  const handleImageLoad = () => {
+    setImageLoading(false);
+    setImageError(null);
+  };
+
+  const handleImageError = () => {
+    setImageLoading(false);
+    setImageError('Görsel yüklenemedi. Lütfen tekrar deneyin.');
+  };
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -89,10 +101,34 @@ export default function BeforeAfterViewer({ result, onReset }: BeforeAfterViewer
 
         <div className="p-6 bg-gray-50">
           <div className="relative mx-auto max-w-4xl">
+            {imageLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            )}
+            {imageError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                <span className="text-red-600 text-lg">⚠️</span>
+                <p className="text-red-800 mt-2">{imageError}</p>
+                <button
+                  onClick={() => {
+                    setImageError(null);
+                    setImageLoading(true);
+                  }}
+                  className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Tekrar Yükle
+                </button>
+              </div>
+            )}
             <img
               src={showBefore ? originalUrl : translatedUrl}
               alt={showBefore ? 'Original' : 'Translated'}
-              className="w-full h-auto rounded-lg shadow-md"
+              className={`w-full h-auto rounded-lg shadow-md ${
+                imageLoading || imageError ? 'hidden' : ''
+              }`}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
             />
           </div>
         </div>

@@ -10,12 +10,16 @@
 ## 🎯 Features
 
 - **🔍 Text Detection**: Advanced OCR using EasyOCR to detect text regions in manga pages
-- **🌐 Smart Translation**: English to Turkish translation using Google Translate API
-- **🎨 AI Inpainting**: Remove original text using LaMa (Large Mask Inpainting) model
-- **✏️ Text Rendering**: Automatically render translated text with optimal font sizing
+- **🌐 Smart Translation**: English to Turkish translation using Google Translate API with fallback support
+- **🎨 AI Inpainting**: Remove original text using LaMa (Large Mask Inpainting) model with OpenCV fallback
+- **✏️ Text Rendering**: Automatically render translated text with Turkish font support (DejaVu Sans)
 - **📊 Before/After Comparison**: Visual comparison of original and translated pages
 - **⚡ Fast Processing**: Complete translation pipeline in 10-30 seconds
 - **🐳 Docker Ready**: Easy deployment with Docker Compose
+- **🔄 Error Resilience**: Automatic retry mechanisms for network failures
+- **🏥 Health Monitoring**: Real-time API status checking
+- **📝 Smart Logging**: Production-ready logging system with different levels
+- **🖼️ Image Caching**: Optimized static file serving with cache headers
 
 ## 🏗️ Tech Stack
 
@@ -264,19 +268,43 @@ docker-compose down
 
 ## 🐛 Troubleshooting
 
+### Backend Connection Issues
+- **Health Check**: Frontend automatically checks backend health every 30 seconds
+- **API Status**: Watch the status indicator in the UI (green = online, red = offline)
+- **Docker**: Ensure both containers are running: `docker ps`
+- **Ports**: Verify ports 3000 and 8000 are not in use by other services
+
 ### OCR not working
-- Ensure EasyOCR models are downloaded (automatic on first run)
-- Check available disk space for model downloads
+- Ensure EasyOCR models are downloaded (automatic on first run, requires internet)
+- Check available disk space for model downloads (2GB+)
 - Verify language codes in configuration
+- **Lazy Loading**: OCR initializes on first use, not at startup
+- **Retry Logic**: 3 automatic retries with progressive backoff (2s, 4s, 6s)
+
+### Translation failures
+- **Multiple Translators**: System tries Google, MyMemory, and LibreTranslate in sequence
+- **Retry Logic**: Each translator retried 3 times before moving to fallback
+- **Network Errors**: Automatic retry with exponential backoff
+- Verify internet connection
+- Check rate limits for translation APIs
 
 ### Inpainting errors
 - LaMa model requires significant memory (2GB+)
-- Falls back to OpenCV inpainting if LaMa fails
+- **Automatic Fallback**: Falls back to OpenCV inpainting if LaMa fails
+- **Retry Logic**: 3 automatic retries for model download
 - Check logs for specific error messages
 
-### Translation failures
-- Verify internet connection for Google Translate API
-- Check rate limits (use DeepL API for production)
+### Turkish Character Issues
+- **Font Support**: DejaVu Sans font installed in Docker container
+- **Character Testing**: System automatically validates Turkish character support (ü,ş,ç,ı,ö,ğ)
+- **Fallback Fonts**: Multiple font fallbacks configured (Liberation, Noto)
+- **UTF-8 Encoding**: All text rendering uses UTF-8
+
+### Image Loading Problems
+- **Loading States**: Images show spinner while loading
+- **Error Handling**: "Tekrar Yükle" button appears if image fails to load
+- **Cache Headers**: Images cached for 1 hour for better performance
+- **CORS**: Properly configured for localhost:3000 access
 
 ## 🚀 Performance Optimization
 
@@ -284,6 +312,39 @@ docker-compose down
 - **Image Preprocessing**: Images are automatically resized to max 2048px
 - **Caching**: Font objects are cached for better performance
 - **Async Processing**: FastAPI handles requests asynchronously
+- **Static File Caching**: 1-hour cache for translated images
+- **Lazy Loading**: Heavy models (OCR, LaMa) load on first use
+- **Connection Pooling**: Reusable HTTP connections for translations
+
+## 🛡️ Error Handling & Resilience
+
+### Automatic Recovery Features
+
+1. **Network Failure Recovery**
+   - 3 automatic retries with progressive backoff (2s, 4s, 6s)
+   - Applies to OCR model downloads, translation API calls, and inpainting
+
+2. **Translation Fallback Chain**
+   - Primary: Google Translate
+   - Fallback 1: MyMemory Translator
+   - Fallback 2: LibreTranslate
+   - Each service tried 3 times before moving to next
+
+3. **Frontend Error Handling**
+   - User-friendly Turkish error messages
+   - Distinguishes between client (4xx) and server (5xx) errors
+   - Automatic retry for network and timeout errors
+   - Backend health monitoring with real-time status
+
+4. **Image Processing Fallbacks**
+   - LaMa inpainting → OpenCV inpainting fallback
+   - Multiple font sources for Turkish characters
+   - Graceful degradation if one stage fails
+
+5. **Logging & Monitoring**
+   - Structured logging with levels (DEBUG, INFO, WARN, ERROR)
+   - Production mode suppresses debug logs
+   - Ready for Sentry/LogRocket integration
 
 ## 📄 License
 

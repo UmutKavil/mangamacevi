@@ -1,17 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ImageUploader from '@/components/ImageUploader';
 import BeforeAfterViewer from '@/components/BeforeAfterViewer';
 import ProcessingStatus from '@/components/ProcessingStatus';
-import { translateMangaPage, TranslationResponse } from '@/lib/api';
+import { translateMangaPage, TranslationResponse, checkHealth } from '@/lib/api';
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<TranslationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  // Check backend health on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      const isHealthy = await checkHealth();
+      setApiStatus(isHealthy ? 'online' : 'offline');
+    };
+    
+    checkBackend();
+    
+    // Check every 30 seconds
+    const interval = setInterval(checkBackend, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleImageUpload = async (file: File) => {
+    // Check if API is online
+    if (apiStatus === 'offline') {
+      setError('API çevrimdışı. Lütfen backend servisinin çalıştığından emin olun.');
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
     setResult(null);
@@ -46,8 +67,16 @@ export default function Home() {
               </p>
             </div>
             <div className="text-right">
-              <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                ✓ API Hazır
+              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                apiStatus === 'online' 
+                  ? 'bg-green-100 text-green-700' 
+                  : apiStatus === 'offline'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {apiStatus === 'online' && '✓ API Hazır'}
+                {apiStatus === 'offline' && '✗ API Çevrimdışı'}
+                {apiStatus === 'checking' && '⟳ Kontrol Ediliyor...'}
               </span>
             </div>
           </div>

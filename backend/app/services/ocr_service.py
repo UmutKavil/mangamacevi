@@ -4,6 +4,7 @@ import numpy as np
 from typing import List, Tuple
 from app.models.schemas import DetectedText, BoundingBox
 from app.config import settings
+import time
 
 
 class OCRService:
@@ -12,20 +13,41 @@ class OCRService:
     def __init__(self):
         """Initialize EasyOCR reader"""
         self.reader = None
-        self._initialize_reader()
+        print("⏳ OCR Service created, will initialize on first use")
     
-    def _initialize_reader(self):
-        """Lazy initialization of EasyOCR reader"""
-        try:
-            self.reader = easyocr.Reader(
-                settings.ocr_languages_list,
-                gpu=settings.ocr_gpu,
-                verbose=False
-            )
-            print("✅ EasyOCR initialized successfully")
-        except Exception as e:
-            print(f"❌ Failed to initialize EasyOCR: {e}")
-            raise
+    def _initialize_reader(self, max_retries: int = 3):
+        """Lazy initialization of EasyOCR reader with retry"""
+        if self.reader is not None:
+            return
+        
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                print(f"📥 Downloading EasyOCR models (attempt {attempt + 1}/{max_retries})...")
+                self.reader = easyocr.Reader(
+                    settings.ocr_languages_list,
+                    gpu=settings.ocr_gpu,
+                    verbose=True,
+                    download_enabled=True
+                )
+                print("✅ EasyOCR initialized successfully")
+                return
+            except Exception as e:
+                last_error = e
+                if "urlopen error" in str(e) or "name resolution" in str(e) or "Connection" in str(e):
+                    wait_time = (attempt + 1) * 2  # Progressive backoff: 2s, 4s, 6s
+                    print(f"⚠️ Network error during EasyOCR initialization (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        print(f"⏳ Retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"❌ Failed to initialize EasyOCR after {max_retries} attempts due to network issues")
+                        print(f"💡 Please check your internet connection or DNS settings")
+                else:
+                    print(f"❌ Failed to initialize EasyOCR: {e}")
+                    break
+        
+        raise RuntimeError(f"Failed to initialize EasyOCR: {last_error}")
     
     def detect_text(self, image_path: str) -> List[DetectedText]:
         """
@@ -37,6 +59,9 @@ class OCRService:
         Returns:
             List of DetectedText objects with bounding boxes and extracted text
         """
+        # Initialize reader on first use
+        self._initialize_reader()
+        
         # Read image
         image = cv2.imread(image_path)
         if image is None:

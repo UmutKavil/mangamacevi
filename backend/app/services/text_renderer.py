@@ -11,13 +11,35 @@ class TextRenderer:
     
     def __init__(self, default_font_path: Optional[str] = None):
         """
-        Initialize text renderer
+        Initialize text renderer with fallback fonts
         
         Args:
             default_font_path: Path to default font file
         """
         self.default_font_path = default_font_path
         self.font_cache = {}
+        
+        # Define fallback font paths (common system fonts)
+        self.fallback_fonts = [
+            "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
+            "/System/Library/Fonts/Helvetica.ttc",  # macOS
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
+            "C:\\Windows\\Fonts\\arial.ttf",  # Windows
+            "C:\\Windows\\Fonts\\calibri.ttf",  # Windows
+        ]
+        
+        # Find first available fallback font
+        self.system_font = None
+        for font_path in self.fallback_fonts:
+            if os.path.exists(font_path):
+                self.system_font = font_path
+                print(f"✅ Found system font: {font_path}")
+                break
+        
+        if not self.system_font:
+            print("⚠️ No system fonts found, using PIL default")
+        
         print("✅ Text renderer initialized")
     
     def render_text(self, 
@@ -52,8 +74,8 @@ class TextRenderer:
                 font_path
             )
             
-            # Load font
-            font = self._get_font(font_path or self.default_font_path, font_size)
+            # Load font with fallback chain
+            font = self._get_font(font_path or self.default_font_path or self.system_font, font_size)
             
             # Calculate text position (centered in bounding box)
             text_bbox = draw.textbbox((0, 0), det_text.translated_text, font=font)
@@ -128,7 +150,7 @@ class TextRenderer:
     
     def _get_font(self, font_path: Optional[str], size: int) -> ImageFont.FreeTypeFont:
         """
-        Get font from cache or load it
+        Get font from cache or load it with fallback chain
         
         Args:
             font_path: Path to font file
@@ -142,15 +164,29 @@ class TextRenderer:
         if cache_key in self.font_cache:
             return self.font_cache[cache_key]
         
-        try:
-            if font_path and os.path.exists(font_path):
-                font = ImageFont.truetype(font_path, size)
-            else:
-                # Try to use default system font
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
-        except Exception as e:
-            print(f"⚠️ Failed to load font: {e}, using default")
-            font = ImageFont.load_default()
+        # Try fonts in priority order
+        font_candidates = []
+        if font_path and os.path.exists(font_path):
+            font_candidates.append(font_path)
+        if self.system_font:
+            font_candidates.append(self.system_font)
+        font_candidates.extend([f for f in self.fallback_fonts if os.path.exists(f)])
+        
+        font = None
+        for candidate in font_candidates:
+            try:
+                font = ImageFont.truetype(candidate, size)
+                break
+            except Exception as e:
+                continue
+        
+        # Ultimate fallback: PIL default font
+        if font is None:
+            try:
+                font = ImageFont.load_default()
+            except Exception as e:
+                # Create a very basic fallback
+                font = ImageFont.load_default()
         
         self.font_cache[cache_key] = font
         return font

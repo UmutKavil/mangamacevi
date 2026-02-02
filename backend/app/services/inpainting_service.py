@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from typing import Optional
 from simple_lama_inpainting import SimpleLama
+import time
 
 
 class InpaintingService:
@@ -12,15 +13,32 @@ class InpaintingService:
         self.lama_model = None
         self._initialize_model()
     
-    def _initialize_model(self):
-        """Lazy initialization of LaMa model"""
-        try:
-            self.lama_model = SimpleLama()
-            print("✅ LaMa inpainting model initialized")
-        except Exception as e:
-            print(f"⚠️ Failed to initialize LaMa model: {e}")
-            print("📝 Falling back to OpenCV inpainting")
-            self.lama_model = None
+    def _initialize_model(self, max_retries: int = 3):
+        """Lazy initialization of LaMa model with retry"""
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                print(f"📥 Loading LaMa inpainting model (attempt {attempt + 1}/{max_retries})...")
+                self.lama_model = SimpleLama()
+                print("✅ LaMa inpainting model initialized")
+                return
+            except Exception as e:
+                last_error = e
+                if "urlopen error" in str(e) or "name resolution" in str(e) or "Connection" in str(e):
+                    print(f"⚠️ Network error during LaMa model download (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 2
+                        print(f"⏳ Retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"❌ Failed to download LaMa model after {max_retries} attempts")
+                        print("📝 Falling back to OpenCV inpainting")
+                else:
+                    print(f"⚠️ Failed to initialize LaMa model: {e}")
+                    print("📝 Falling back to OpenCV inpainting")
+                    break
+        
+        self.lama_model = None
     
     def inpaint(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """

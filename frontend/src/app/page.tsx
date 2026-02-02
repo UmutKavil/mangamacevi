@@ -6,9 +6,17 @@ import BeforeAfterViewer from '@/components/BeforeAfterViewer';
 import ProcessingStatus from '@/components/ProcessingStatus';
 import { translateMangaPage, TranslationResponse, checkHealth } from '@/lib/api';
 
+interface BatchResult {
+  file: File;
+  result: TranslationResponse | null;
+  error: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<TranslationResponse | null>(null);
+  const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
@@ -26,7 +34,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleImageUpload = async (file: File) => {
+  const handleImageUpload = async (files: File[]) => {
     // Check if API is online
     if (apiStatus === 'offline') {
       setError('API çevrimdışı. Lütfen backend servisinin çalıştığından emin olun.');
@@ -35,23 +43,60 @@ export default function Home() {
 
     setIsProcessing(true);
     setError(null);
-    setResult(null);
+    setCurrentIndex(0);
 
-    try {
-      const response = await translateMangaPage(file);
-      // Immediately show result when backend responds
-      setIsProcessing(false);
-      setResult(response);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bir hata oluştu');
-      setIsProcessing(false);
+    // Initialize batch results
+    const initialResults: BatchResult[] = files.map(file => ({
+      file,
+      result: null,
+      error: null,
+      status: 'pending'
+    }));
+    setBatchResults(initialResults);
+
+    // Process files sequentially
+    for (let i = 0; i < files.length; i++) {
+      setCurrentIndex(i);
+      
+      // Update status to processing
+      setBatchResults(prev => 
+        prev.map((r, idx) => idx === i ? { ...r, status: 'processing' } : r)
+      );
+
+      try {
+        const response = await translateMangaPage(files[i]);
+        
+        // Update with result
+        setBatchResults(prev =>
+          prev.map((r, idx) => idx === i ? { 
+            ...r, 
+            result: response, 
+            status: 'completed' 
+          } : r)
+        );
+      } catch (err) {
+        // Update with error
+        setBatchResults(prev =>
+          prev.map((r, idx) => idx === i ? { 
+            ...r, 
+            error: err instanceof Error ? err.message : 'Bir hata oluştu',
+            status: 'failed'
+          } : r)
+        );
+      }
     }
+
+    setIsProcessing(false);
   };
 
   const handleReset = () => {
-    setResult(null);
+    setBatchResults([]);
     setError(null);
+    setCurrentIndex(0);
   };
+
+  const completedResults = batchResults.filter(r => r.status === 'completed');
+  const hasResults = completedResults.length > 0;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -82,14 +127,14 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-12">
-        {!result && !isProcessing && (
+      </hehasResults && !isProcessing && (
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-semibold text-gray-800 mb-3">
+                Manga Sayfalarınızı Yükleyin
+              </h2>
+              <p className="text-gray-600">
+                Birden fazla manga sayfası seçebilirsiniz - tümü sırayla çevrilecek
                 Manga Sayfanızı Yükleyin
               </h2>
               <p className="text-gray-600">
@@ -127,13 +172,75 @@ export default function Home() {
 
         {isProcessing && (
           <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-lg shadow-lg border p-8 mb-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  Toplu Çeviri İşleniyor
+                </h2>
+                <div className="mb-6">
+                  <p className="text-lg text-gray-700 mb-2">
+                    Sayfa {currentIndex + 1} / {batchResults.length}
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-4">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-4 rounded-full transition-all duration-500"
+                      style={{ width: `${((currentIndex + 1) / batchResults.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {batchResults.map((result, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center gap-3 p-3 rounded-lg ${
+                        result.status === 'completed'
+                          ? 'bg-green-50 border border-green-200'
+                          : result.status === 'processing'
+                          ? 'bg-blue-50 border border-blue-200'
+                          : result.status === 'failed'
+                          ? 'bg-red-50 border border-red-200'
+                          : 'bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <span className="text-sm font-medium text-gray-700">
+                        {index + 1}.
+                      </span>
+                      <span className="flex-1 text-sm text-gray-700 truncate">
+                        {result.file.name}
+                      </span>
+                      {result.status === 'completed' && <span className="text-green-600">✓</span>}
+                      {result.status === 'processing' && <span className="text-blue-600 animate-spin">⟳</span>}
+                      {result.status === 'failed' && <span className="text-red-600">✗</span>}
+                      {result.status === 'pending' && <span className="text-gray-400">⋯</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
             <ProcessingStatus />
           </div>
         )}
 
-        {result && !isProcessing && (
+        {hasResults && !isProcessing && (
           <div>
-            <BeforeAfterViewer result={result} onReset={handleReset} />
+            <div className="mb-6 text-center">
+              <button
+                onClick={handleReset}
+                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                ← Yeni Çeviri
+              </button>
+            </div>
+            <div className="space-y-12">
+              {completedResults.map((item, index) => (
+                <div key={index}>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">
+                    Sayfa {batchResults.findIndex(r => r === item) + 1}: {item.file.name}
+                  </h3>
+                  {item.result && <BeforeAfterViewer result={item.result} onReset={handleReset} />}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

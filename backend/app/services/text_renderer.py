@@ -19,14 +19,24 @@ class TextRenderer:
         self.default_font_path = default_font_path
         self.font_cache = {}
         
-        # Define fallback font paths (common system fonts)
+        # Define fallback font paths prioritizing Turkish character support
         self.fallback_fonts = [
-            "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
-            "/System/Library/Fonts/Helvetica.ttc",  # macOS
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
-            "C:\\Windows\\Fonts\\arial.ttf",  # Windows
-            "C:\\Windows\\Fonts\\calibri.ttf",  # Windows
+            # macOS fonts with Turkish support
+            "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",  # Best Unicode support
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Verdana.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/Library/Fonts/Arial.ttf",
+            # Linux fonts with Turkish support
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Excellent Unicode
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            # Windows fonts with Turkish support
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\verdana.ttf",
+            "C:\\Windows\\Fonts\\calibri.ttf",
+            "C:\\Windows\\Fonts\\segoeui.ttf",
         ]
         
         # Find first available fallback font
@@ -34,11 +44,11 @@ class TextRenderer:
         for font_path in self.fallback_fonts:
             if os.path.exists(font_path):
                 self.system_font = font_path
-                print(f"✅ Found system font: {font_path}")
+                print(f"✅ Found system font with Turkish support: {font_path}")
                 break
         
         if not self.system_font:
-            print("⚠️ No system fonts found, using PIL default")
+            print("⚠️ No system fonts found, text may not display correctly")
         
         print("✅ Text renderer initialized")
     
@@ -47,7 +57,7 @@ class TextRenderer:
                    detected_texts: List[DetectedText],
                    font_path: Optional[str] = None) -> np.ndarray:
         """
-        Render all translated texts onto the image
+        Render all translated texts onto the image with Turkish character support
         
         Args:
             image: Input image (BGR format from OpenCV)
@@ -66,35 +76,47 @@ class TextRenderer:
             if not det_text.translated_text:
                 continue
             
+            # Ensure text is properly encoded
+            text_to_render = str(det_text.translated_text)
+            
             # Calculate optimal font size for this text region
             font_size = self._calculate_font_size(
-                det_text.translated_text,
+                text_to_render,
                 det_text.bbox.width,
                 det_text.bbox.height,
                 font_path
             )
             
-            # Load font with fallback chain
+            # Load font with Turkish character support
             font = self._get_font(font_path or self.default_font_path or self.system_font, font_size)
             
             # Calculate text position (centered in bounding box)
-            text_bbox = draw.textbbox((0, 0), det_text.translated_text, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-            text_height = text_bbox[3] - text_bbox[1]
+            try:
+                text_bbox = draw.textbbox((0, 0), text_to_render, font=font)
+                text_width = text_bbox[2] - text_bbox[0]
+                text_height = text_bbox[3] - text_bbox[1]
+            except Exception as e:
+                print(f"⚠️ Error calculating text bbox: {e}")
+                # Fallback to approximate dimensions
+                text_width = len(text_to_render) * font_size // 2
+                text_height = font_size
             
             x = det_text.bbox.x + (det_text.bbox.width - text_width) // 2
             y = det_text.bbox.y + (det_text.bbox.height - text_height) // 2
             
             # Draw text with black color (typical for manga)
-            draw.text(
-                (x, y),
-                det_text.translated_text,
-                font=font,
-                fill=(0, 0, 0),  # Black text
-                stroke_width=0
-            )
-            
-            print(f"✏️ Rendered: '{det_text.translated_text}' at ({x}, {y})")
+            try:
+                draw.text(
+                    (x, y),
+                    text_to_render,
+                    font=font,
+                    fill=(0, 0, 0),  # Black text
+                    stroke_width=0,
+                    encoding='utf-8'
+                )
+                print(f"✏️ Rendered: '{text_to_render}' at ({x}, {y})")
+            except Exception as e:
+                print(f"⚠️ Error rendering text '{text_to_render}': {e}")
         
         # Convert back to BGR for OpenCV
         result_rgb = np.array(pil_image)
@@ -150,7 +172,7 @@ class TextRenderer:
     
     def _get_font(self, font_path: Optional[str], size: int) -> ImageFont.FreeTypeFont:
         """
-        Get font from cache or load it with fallback chain
+        Get font from cache or load it with fallback chain and Turkish character support
         
         Args:
             font_path: Path to font file
@@ -172,20 +194,44 @@ class TextRenderer:
             font_candidates.append(self.system_font)
         font_candidates.extend([f for f in self.fallback_fonts if os.path.exists(f)])
         
+        # Turkish test characters
+        turkish_chars = "üşçığö ÜŞÇIĞÖ"
+        
         font = None
         for candidate in font_candidates:
             try:
-                font = ImageFont.truetype(candidate, size)
-                break
+                test_font = ImageFont.truetype(candidate, size)
+                # Test if font supports Turkish characters
+                try:
+                    # Try to get bbox for Turkish characters to verify support
+                    test_image = Image.new('RGB', (1, 1))
+                    test_draw = ImageDraw.Draw(test_image)
+                    test_draw.textbbox((0, 0), turkish_chars, font=test_font)
+                    font = test_font
+                    print(f"✅ Using font: {candidate} (Turkish characters supported)")
+                    break
+                except:
+                    # Font doesn't support Turkish characters well, try next
+                    continue
             except Exception as e:
                 continue
         
-        # Ultimate fallback: PIL default font
+        # Ultimate fallback: use any working font
+        if font is None:
+            for candidate in font_candidates:
+                try:
+                    font = ImageFont.truetype(candidate, size)
+                    print(f"⚠️ Using font: {candidate} (Turkish support uncertain)")
+                    break
+                except:
+                    continue
+        
+        # Last resort: PIL default font
         if font is None:
             try:
                 font = ImageFont.load_default()
+                print("⚠️ Using PIL default font (limited character support)")
             except Exception as e:
-                # Create a very basic fallback
                 font = ImageFont.load_default()
         
         self.font_cache[cache_key] = font

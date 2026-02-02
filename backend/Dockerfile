@@ -3,7 +3,7 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and fonts
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -15,7 +15,14 @@ RUN apt-get update && apt-get install -y \
     libx11-6 \
     wget \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    fontconfig \
+    fonts-dejavu-core \
+    fonts-dejavu-extra \
+    fonts-liberation \
+    fonts-noto \
+    fonts-noto-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
 # Copy requirements
 COPY requirements.txt .

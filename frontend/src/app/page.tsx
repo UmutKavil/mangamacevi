@@ -127,7 +127,11 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </hehasResults && !isProcessing && (
+      </header>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-12">
+        {!hasResults && !isProcessing && (
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-2xl font-semibold text-gray-800 mb-3">
@@ -135,10 +139,6 @@ export default function Home() {
               </h2>
               <p className="text-gray-600">
                 Birden fazla manga sayfası seçebilirsiniz - tümü sırayla çevrilecek
-                Manga Sayfanızı Yükleyin
-              </h2>
-              <p className="text-gray-600">
-                İngilizce manga sayfanızı yükleyin, otomatik olarak Türkçe'ye çevirelim
               </p>
             </div>
             <ImageUploader onUpload={handleImageUpload} />

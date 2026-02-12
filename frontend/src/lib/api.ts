@@ -44,10 +44,12 @@ export interface ApiError {
  */
 export async function translateMangaPage(
   file: File, 
+  useGPU: boolean = false,
   retries: number = 2
 ): Promise<TranslationResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('use_gpu', useGPU.toString());
 
   let lastError: Error | null = null;
 

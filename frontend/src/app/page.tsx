@@ -19,6 +19,15 @@ export default function Home() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [useGPU, setUseGPU] = useState(false);
+
+  // Load GPU preference from localStorage on mount
+  useEffect(() => {
+    const savedGPUPreference = localStorage.getItem('useGPU');
+    if (savedGPUPreference !== null) {
+      setUseGPU(savedGPUPreference === 'true');
+    }
+  }, []);
 
   // Check backend health on mount
   useEffect(() => {
@@ -33,6 +42,13 @@ export default function Home() {
     const interval = setInterval(checkBackend, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Toggle GPU/CPU
+  const handleToggleGPU = () => {
+    const newValue = !useGPU;
+    setUseGPU(newValue);
+    localStorage.setItem('useGPU', newValue.toString());
+  };
 
   const handleImageUpload = async (files: File[]) => {
     // Check if API is online
@@ -64,7 +80,7 @@ export default function Home() {
       );
 
       try {
-        const response = await translateMangaPage(files[i]);
+        const response = await translateMangaPage(files[i], useGPU);
         
         // Update with result
         setBatchResults(prev =>
@@ -113,17 +129,32 @@ export default function Home() {
               </p>
             </div>
             <div className="text-right">
-              <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                apiStatus === 'online' 
-                  ? 'bg-green-100 text-green-700' 
-                  : apiStatus === 'offline'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-yellow-100 text-yellow-700'
-              }`}>
-                {apiStatus === 'online' && '✓ API Hazır'}
-                {apiStatus === 'offline' && '✗ API Çevrimdışı'}
-                {apiStatus === 'checking' && '⟳ Kontrol Ediliyor...'}
-              </span>
+              <div className="flex flex-col gap-2 items-end">
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                  apiStatus === 'online' 
+                    ? 'bg-green-100 text-green-700' 
+                    : apiStatus === 'offline'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {apiStatus === 'online' && '✓ API Hazır'}
+                  {apiStatus === 'offline' && '✗ API Çevrimdışı'}
+                  {apiStatus === 'checking' && '⟳ Kontrol Ediliyor...'}
+                </span>
+                <button
+                  onClick={handleToggleGPU}
+                  disabled={isProcessing}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    useGPU 
+                      ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                      : 'bg-gray-600 text-white hover:bg-gray-700'
+                  } ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  title={useGPU ? 'Ekran Kartı (GPU) Aktif' : 'İşlemci (CPU) Aktif'}
+                >
+                  <span>{useGPU ? '🎮' : '💻'}</span>
+                  <span>{useGPU ? 'GPU Aktif' : 'CPU Aktif'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

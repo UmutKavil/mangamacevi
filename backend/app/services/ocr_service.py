@@ -13,24 +13,33 @@ class OCRService:
     def __init__(self):
         """Initialize EasyOCR reader"""
         self.reader = None
+        self.current_gpu_mode = None
         print("⏳ OCR Service created, will initialize on first use")
     
-    def _initialize_reader(self, max_retries: int = 3):
+    def _initialize_reader(self, use_gpu: bool = False, max_retries: int = 3):
         """Lazy initialization of EasyOCR reader with retry"""
-        if self.reader is not None:
+        # Check if we need to reinitialize (GPU mode changed)
+        if self.reader is not None and self.current_gpu_mode == use_gpu:
             return
+        
+        # If GPU mode changed, reinitialize
+        if self.reader is not None and self.current_gpu_mode != use_gpu:
+            print(f"🔄 GPU mode changed from {self.current_gpu_mode} to {use_gpu}, reinitializing...")
+            self.reader = None
         
         last_error = None
         for attempt in range(max_retries):
             try:
-                print(f"📥 Downloading EasyOCR models (attempt {attempt + 1}/{max_retries})...")
+                device = 'GPU (Ekran Kartı)' if use_gpu else 'CPU (İşlemci)'
+                print(f"📥 Downloading EasyOCR models with {device} (attempt {attempt + 1}/{max_retries})...")
                 self.reader = easyocr.Reader(
                     settings.ocr_languages_list,
-                    gpu=settings.ocr_gpu,
+                    gpu=use_gpu,
                     verbose=True,
                     download_enabled=True
                 )
-                print("✅ EasyOCR initialized successfully")
+                self.current_gpu_mode = use_gpu
+                print(f"✅ EasyOCR initialized successfully with {device}")
                 return
             except Exception as e:
                 last_error = e
@@ -49,18 +58,19 @@ class OCRService:
         
         raise RuntimeError(f"Failed to initialize EasyOCR: {last_error}")
     
-    def detect_text(self, image_path: str) -> List[DetectedText]:
+    def detect_text(self, image_path: str, use_gpu: bool = False) -> List[DetectedText]:
         """
         Detect and extract text from image
         
         Args:
             image_path: Path to the manga page image
+            use_gpu: Whether to use GPU for detection (default: False)
             
         Returns:
             List of DetectedText objects with bounding boxes and extracted text
         """
         # Initialize reader on first use
-        self._initialize_reader()
+        self._initialize_reader(use_gpu=use_gpu)
         
         # Read image
         image = cv2.imread(image_path)

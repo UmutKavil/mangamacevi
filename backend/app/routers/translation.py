@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from app.models.schemas import TranslationResponse, DetectedText
 from app.services.pipeline import TranslationPipeline
@@ -16,7 +16,8 @@ pipeline = TranslationPipeline()
 
 @router.post("/translate", response_model=TranslationResponse)
 async def translate_manga(
-    file: UploadFile = File(..., description="Manga page image (JPG/PNG)")
+    file: UploadFile = File(..., description="Manga page image (JPG/PNG)"),
+    use_gpu: bool = Form(False, description="Use GPU for processing")
 ):
     """
     Main endpoint to process manga translation
@@ -57,7 +58,8 @@ async def translate_manga(
         # Process the image through the pipeline
         result = await pipeline.process_image(
             image_path=original_path,
-            file_id=file_id
+            file_id=file_id,
+            use_gpu=use_gpu
         )
         
         processing_time = time.time() - start_time

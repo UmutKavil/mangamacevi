@@ -29,26 +29,28 @@ class TranslationPipeline:
         self.text_renderer = TextRenderer(settings.default_font_path)
         print("✅ Translation Pipeline ready")
     
-    async def process_image(self, image_path: str, file_id: str) -> Dict:
+    async def process_image(self, image_path: str, file_id: str, use_gpu: bool = False) -> Dict:
         """
         Process a manga page through the complete pipeline with error handling
         
         Args:
             image_path: Path to the uploaded manga page
             file_id: Unique identifier for this processing job
+            use_gpu: Whether to use GPU for processing (default: False)
             
         Returns:
             Dictionary with processing results
         """
         print(f"\n{'='*60}")
         print(f"📖 Processing manga page: {file_id}")
+        print(f"🖥️ Device: {'GPU (Ekran Kartı)' if use_gpu else 'CPU (İşlemci)'}")
         print(f"{'='*60}\n")
         
         try:
             # Step 1: OCR - Detect text regions
             print("🔍 Step 1: Detecting text regions...")
             try:
-                detected_texts = self.ocr_service.detect_text(image_path)
+                detected_texts = self.ocr_service.detect_text(image_path, use_gpu=use_gpu)
             except Exception as e:
                 print(f"❌ OCR failed: {e}")
                 raise RuntimeError(f"Text detection failed: {str(e)}")
